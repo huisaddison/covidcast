@@ -91,6 +91,7 @@
 #'   parameter.
 #' @param verbose Should progress be printed out to the console? Default is
 #'   `FALSE`. 
+#' @param n_cores Enables parallelization when set to > 1.
 #' @param ... Additional arguments. Any parameter accepted by
 #'   `quantgen::cv_quantile_lasso()` (for model training) or by
 #'   `quantgen:::predict.cv_quantile_genlasso()` (for model prediction) can be
@@ -107,6 +108,7 @@
 #'   quantile forecasts for that location and ahead. 
 #' 
 #' @importFrom dplyr filter select pull summarize between
+#' @importFrom parallel detectCores mclapply
 #' @importFrom tidyr pivot_longer
 #' @export
 quantgen_forecaster = function(df, forecast_date, signals, incidence_period,
@@ -117,7 +119,14 @@ quantgen_forecaster = function(df, forecast_date, signals, incidence_period,
                                featurize = NULL, noncross = FALSE, 
                                noncross_points = c("all", "test", "train"),
                                cv_type = c("forward", "random"),
-                               verbose = FALSE, ...) {   
+                               verbose = FALSE, n_cores = 1,
+                               ...) {   
+  if (n_cores > 1) {
+    n_cores = min(n_cores, parallel::detectCores())
+  } else {
+    n_cores = 1
+  }
+  message(sprintf('Quantgen forecaster running with %d cores', n_cores))
   # Check lags vector or list
   if (any(unlist(lags) < 0)) stop("All lags must be nonnegative.")
   if (!is.list(lags)) lags = rep(list(lags), nrow(signals))
@@ -191,8 +200,7 @@ quantgen_forecaster = function(df, forecast_date, signals, incidence_period,
     select(-c(geo_value, time_value)) %>% as.matrix()
     
   # Loop over ahead values, fit model, make predictions 
-  result = vector(mode = "list", length = length(ahead))
-  for (i in 1:length(ahead)) {
+  result = parallel::mclapply(1:length(ahead), function(i) {
     a = ahead[i]
     if (verbose) cat(sprintf("%s%i", ifelse(i == 1, "\nahead = ", ", "), a))
     
@@ -278,8 +286,8 @@ quantgen_forecaster = function(df, forecast_date, signals, incidence_period,
     # unless we're super careful this would get squashed by downstream uses of 
     # rbind(), map(), etc. We could be careful here, but then we'd also have
     # to keep track of what evalcast does
-    result[[i]] = predict_df
-  }
+    return(predict_df)
+  }, mc.cores=n_cores)
   if (verbose) cat("\n")
 
   # Collapse predictions into one big data frame, and return

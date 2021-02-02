@@ -91,7 +91,9 @@
 #'   parameter.
 #' @param verbose Should progress be printed out to the console? Default is
 #'   `FALSE`. 
-#' @param n_cores Enables parallelization when set to > 1.
+#' @param n_core Enables parallelization when set to > 1.
+#' @param debug String filename prefix for saving fitted object to disk;
+#'   defaults to NULL, in which case the object is not saved.
 #' @param ... Additional arguments. Any parameter accepted by
 #'   `quantgen::cv_quantile_lasso()` (for model training) or by
 #'   `quantgen:::predict.cv_quantile_genlasso()` (for model prediction) can be
@@ -107,7 +109,7 @@
 #'   `value`. The `quantile` column gives the probabilities associated with
 #'   quantile forecasts for that location and ahead. 
 #' 
-#' @importFrom dplyr filter select pull summarize between
+#' @importFrom dplyr filter select pull summarize between bind_cols
 #' @importFrom parallel detectCores mclapply
 #' @importFrom tidyr pivot_longer
 #' @export
@@ -119,14 +121,14 @@ quantgen_forecaster = function(df, forecast_date, signals, incidence_period,
                                featurize = NULL, noncross = FALSE, 
                                noncross_points = c("all", "test", "train"),
                                cv_type = c("forward", "random"),
-                               verbose = FALSE, n_cores = 1,
+                               verbose = FALSE, n_core = 1, debug = NULL,
                                ...) {   
-  if (n_cores > 1) {
-    n_cores = min(n_cores, parallel::detectCores())
+  if (n_core > 1) {
+    n_core = min(n_core, parallel::detectCores())
   } else {
-    n_cores = 1
+    n_core = 1
   }
-  message(sprintf('Quantgen forecaster running with %d cores', n_cores))
+  message(sprintf('Quantgen forecaster running with %d cores', n_core))
   # Check lags vector or list
   if (any(unlist(lags) < 0)) stop("All lags must be nonnegative.")
   if (!is.list(lags)) lags = rep(list(lags), nrow(signals))
@@ -200,7 +202,8 @@ quantgen_forecaster = function(df, forecast_date, signals, incidence_period,
     select(-c(geo_value, time_value)) %>% as.matrix()
     
   # Loop over ahead values, fit model, make predictions 
-  result = parallel::mclapply(1:length(ahead), function(i) {
+  results_list = parallel::mclapply(1:length(ahead), function(i) {
+  #for (i in 1:length(ahead)) {
     a = ahead[i]
     if (verbose) cat(sprintf("%s%i", ifelse(i == 1, "\nahead = ", ", "), a))
     
@@ -269,8 +272,8 @@ quantgen_forecaster = function(df, forecast_date, signals, incidence_period,
     
     # Do some wrangling to get it into evalcast "long" format
     colnames(predict_mat) = tau
-    predict_df = as.data.frame(
-      cbind(geo_value = test_geo_value, predict_mat)) %>%
+    predict_df = bind_cols(geo_value = test_geo_value,
+                           predict_mat) %>%
       pivot_longer(cols = -geo_value,
                    names_to = "quantile",
                    values_to = "value") %>%
@@ -286,9 +289,17 @@ quantgen_forecaster = function(df, forecast_date, signals, incidence_period,
     # unless we're super careful this would get squashed by downstream uses of 
     # rbind(), map(), etc. We could be careful here, but then we'd also have
     # to keep track of what evalcast does
-    return(predict_df)
-  }, mc.cores=n_cores)
+    return(list(predict_df, predict_params))
+  }, mc.cores=n_core)
+  #}
   if (verbose) cat("\n")
+
+  result = lapply(results_list, function(x) x[[1]])
+  if (!is.null(debug)) {
+    predict_params = lapply(results_list, function(x) x[[2]])
+    saveRDS(list(ahead=ahead, predict_params=predict_params),
+            sprintf('%s_%s_%s.RDS', debug, geo_type, forecast_date))
+  }
 
   # Collapse predictions into one big data frame, and return
   return(do.call(rbind, result))

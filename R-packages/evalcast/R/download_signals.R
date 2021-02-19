@@ -1,3 +1,4 @@
+#' @export
 download_signal <- function(...) {
   args <- list(...)
   if (is.null(args$start_day)) {

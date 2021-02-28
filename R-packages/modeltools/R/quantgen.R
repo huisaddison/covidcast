@@ -236,29 +236,34 @@ quantgen_forecaster = function(df, forecast_date, signals, incidence_period,
     }
       
     # Define forward-validation folds, if we need to
-    if (cv && cv_type == "forward") {
+    if (cv_type == "forward") {
       # Training time values
       train_time_value = df_wide %>%
         filter(between(time_value,
                        train_end_date - n + 1,
                        train_end_date)) %>%
         select(time_value) %>% pull()
-
+      
       # Training and test folds
       nfolds = ifelse(!is.null(params$nfolds), params$nfolds, 5)
+      ntrain = ifelse(!is.null(params$ntrain), params$ntrain, n - nfolds)
+			# TODO: this check should happen elsewhere
+      assertthat::assert_that(nfolds + ntrain <= n) 
       train_test_inds = list(train = vector(mode = "list", length = nfolds),
                              test = vector(mode = "list", length = nfolds))
       for (k in 1:nfolds) {
+        validation_forecast_date = train_end_date - nfolds + k
         train_test_inds$train[[k]] = which(
           between(train_time_value,
-                  train_end_date - n + k,
-                  train_end_date - nfolds + k - 1))
+                  validation_forecast_date - a - ntrain,
+                  validation_forecast_date - a - 1
+                  )
+        )
         train_test_inds$test[[k]] = which(
-          train_time_value == train_end_date - nfolds + k) 
+          train_time_value == validation_forecast_date) 
       }
       train_params$train_test_inds = train_test_inds
     }
-    
     # Add training x and y to training params list, fit model
     train_params$x = x
     train_params$y = y; 

@@ -236,7 +236,7 @@ quantgen_forecaster = function(df, forecast_date, signals, incidence_period,
     }
       
     # Define forward-validation folds, if we need to
-    if (cv_type == "forward") {
+    if (cv && cv_type == "forward") {
       # Training time values
       train_time_value = df_wide %>%
         filter(between(time_value,

@@ -231,6 +231,14 @@ grf_forecaster = function(df, forecast_date, signals, incidence_period,
 		good_inds = rowSums(is.na(x)) == 0 & !is.na(y)
 		x = x[good_inds,]
 		y = y[good_inds]
+    if (sum(good_inds) == 0) {
+      result[[i]] = data.frame(ahead=as.integer(), geo_value=as.character(),
+                               quantile=as.numeric(), value=as.numeric())
+      warning(sprintf('No data for forecast_date="%s", ahead=%d, skipping...',
+                      forecast_date,
+                      ahead[i]))
+      next
+    }
     # Add training x and y to training params list, fit model
     train_params$X = x
     train_params$Y = y; 
@@ -249,7 +257,9 @@ grf_forecaster = function(df, forecast_date, signals, incidence_period,
       pivot_longer(cols = -geo_value,
                    names_to = "quantile",
                    values_to = "value") %>%
-      mutate(ahead = a)
+      mutate(quantile = as.numeric(quantile),
+             value = as.numeric(value),
+             ahead = a)
     if (nonneg) {
       predict_df$value = pmax(predict_df$value, 0)
     }

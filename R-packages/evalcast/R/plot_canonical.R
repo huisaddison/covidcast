@@ -63,7 +63,8 @@ plot_canonical <- function(df, x, y, aggr = mean, dots = TRUE, lines = TRUE,
 
   # Scale after aggregation, if we need to
   if (!is.null(base_forecaster) && !scale_before_aggr) {
-    df <- scale_by_forecaster(df, y, base_forecaster)
+    df <- scale_by_forecaster(df, y, base_forecaster,
+                              id_cols = c("forecaster", "ahead"))
   }
 
   # Set up plotting layers

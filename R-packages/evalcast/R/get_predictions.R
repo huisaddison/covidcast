@@ -67,6 +67,7 @@ get_predictions <- function(forecaster,
                             signal_aggregation = c("list", "wide", "long"),
                             signal_aggregation_dt = NULL,
                             as_of_override = function(forecast_date) forecast_date,
+                            backfill_buffer=0,
                             ...) {
   assert_that(is_tibble(signals), msg="`signals` should be a tibble.")
   signal_aggregation = match.arg(signal_aggregation, c("list", "wide", "long"))
@@ -85,7 +86,8 @@ get_predictions <- function(forecaster,
                  apply_corrections = apply_corrections,
                  signal_aggregation = signal_aggregation,
                  signal_aggregation_dt = signal_aggregation_dt,
-                 as_of_override = as_of_override),
+                 as_of_override = as_of_override,
+                 backfill_buffer = backfill_buffer),
                  params))) %>%
     bind_rows()
 
@@ -108,6 +110,7 @@ get_predictions_single_date <- function(forecaster,
                                         signal_aggregation,
                                         signal_aggregation_dt,
                                         as_of_override,
+                                        backfill_buffer,
                                         ...) {
   # see get_predictions() for descriptions of the arguments
 
@@ -131,7 +134,7 @@ get_predictions_single_date <- function(forecaster,
   df <- download_signals(data_source = signals$data_source,
                          signal = signals$signal,
                          start_day = signals$start_day,
-                         end_day = forecast_date,
+                         end_day = forecast_date - backfill_buffer,
                          as_of = as_of_override(forecast_date),
                          geo_type = geo_type,
                          geo_values = geo_values_dl,

@@ -131,11 +131,6 @@ get_predictions_single_date <- function(forecaster,
   } else {
     geo_values_dl <- unique(geo_values)
   }
-  if (as_of_override) {
-    as_of = lubridate::today()
-  } else {
-    as_of = forecast_date
-  }
   df <- download_signals(data_source = signals$data_source,
                          signal = signals$signal,
                          start_day = signals$start_day,

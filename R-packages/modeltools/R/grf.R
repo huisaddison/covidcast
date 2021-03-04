@@ -104,8 +104,14 @@ grf_forecaster = function(df, forecast_date, signals, incidence_period,
                                transform = NULL, inv_trans = NULL,
                                featurize = NULL,  
                                cv_type = c("forward", "random"),
-                               verbose = FALSE, nonneg=FALSE,
+                               verbose = FALSE, n_core=1, nonneg=FALSE,
                                ...) {   
+  if (n_core > 1) {
+    n_core = min(n_core, parallel::detectCores())
+  } else {
+    n_core = 1
+  }
+  message(sprintf('GRF forecaster running with %d cores', n_core))
   # Check lags vector or list
   if (any(unlist(lags) < 0)) stop("All lags must be nonnegative.")
   if (!is.list(lags)) lags = rep(list(lags), nrow(signals))
@@ -178,8 +184,9 @@ grf_forecaster = function(df, forecast_date, signals, incidence_period,
     select(-c(geo_value, time_value)) %>% as.matrix()
     
   # Loop over ahead values, fit model, make predictions 
-  result = vector(mode = "list", length = length(ahead))
-  for (i in 1:length(ahead)) {
+  #result = vector(mode = "list", length = length(ahead))
+  #for (i in 1:length(ahead)) {
+  results_list = parallel::mclapply(1:length(ahead), function(i) {
     a = ahead[i]
     if (verbose) cat(sprintf("%s%i", ifelse(i == 1, "\nahead = ", ", "), a))
     
@@ -272,9 +279,11 @@ grf_forecaster = function(df, forecast_date, signals, incidence_period,
     # unless we're super careful this would get squashed by downstream uses of 
     # rbind(), map(), etc. We could be careful here, but then we'd also have
     # to keep track of what evalcast does
-    result[[i]] = predict_df
-  }
+    return(list(predict_df, predict_params))
+  }, mc.cores=n_core)
   if (verbose) cat("\n")
+  result = lapply(results_list, function(x) x[[1]])
+
 
   # Collapse predictions into one big data frame, and return
   return(do.call(rbind, result))

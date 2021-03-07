@@ -246,16 +246,23 @@ quantgen_forecaster = function(df, forecast_date, signals, incidence_period,
 
       # Training and test folds
       nfolds = ifelse(!is.null(params$nfolds), params$nfolds, 5)
+      ntrain = ifelse(!is.null(params$ntrain), params$ntrain, n - nfolds)
       train_test_inds = list(train = vector(mode = "list", length = nfolds),
-                             test = vector(mode = "list", length = nfolds))
+                             test = vector(mode = "list", length = nfolds),
+                             fit = c())
       for (k in 1:nfolds) {
+        validation_forecast_date = train_end_date - nfolds + k
         train_test_inds$train[[k]] = which(
           between(train_time_value,
-                  train_end_date - n + k,
-                  train_end_date - nfolds + k - 1))
+                  validation_forecast_date - a - ntrain + 1,
+                  validation_forecast_date - a))
         train_test_inds$test[[k]] = which(
-          train_time_value == train_end_date - nfolds + k) 
+          train_time_value == validation_forecast_date) 
       }
+      train_test_inds$fit = which(
+        between(train_time_value,
+                train_end_date - ntrain + 1,
+                train_end_date))
       train_params$train_test_inds = train_test_inds
     }
     
